@@ -1,0 +1,2 @@
+docs_server =
+docs_directory = /Users/sungwoo/Projects/ShareDocsServer/shared_docs

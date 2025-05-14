@@ -1,0 +1,52 @@
+import java.io.*;
+import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ShareDocsServer {
+
+    static String configPath = "config.txt";
+
+    static String ip = "localhost";
+
+    static int port = 12345;
+
+    public static void main(String[] args) throws IOException {
+        writeServerInfoToConfig(configPath, ip, port);
+
+        DocsManager docsManager = new DocsManagerImpl(configPath);
+
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("서버가 포트 " + port + "에서 대기 중...");
+
+        while (true) {
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("클라이언트 " + clientSocket.getInetAddress() + ":" + clientSocket.getPort() + " 접속됨");
+
+            // 클라이언트마다 독립 스레드
+            new Thread(new ClientHandler(clientSocket, docsManager)).start();
+        }
+    }
+
+    private static void writeServerInfoToConfig(String configPath, String ip, int port) throws IOException {
+        Path path = Paths.get(configPath);
+        List<String> originalLines = new ArrayList<>();
+
+        if (Files.exists(path)) {
+            for (String line : Files.readAllLines(path)) {
+                // 기존 docs_server 라인은 제거
+                if (!line.trim().startsWith("docs_server")) {
+                    originalLines.add(line);
+                }
+            }
+        }
+
+        // 맨 위에 docs_server 라인 추가
+        originalLines.add(0, "docs_server = " + ip + " " + port);
+
+        Files.write(path, originalLines);
+    }
+}
