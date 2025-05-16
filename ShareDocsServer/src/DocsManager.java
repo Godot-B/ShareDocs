@@ -3,7 +3,7 @@ import java.util.Map;
 
 public interface DocsManager {
 
-    boolean createDocument(String docTitle, List<String> secTitles);
+    CreateResult createDocument(String docTitle, List<String> secTitles);
 
     Map<String, List<String>> getStructure();
 
