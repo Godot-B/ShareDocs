@@ -15,6 +15,9 @@ public class ClientHandler implements Runnable {
     private final DocsManager docsManager;
     private static final Logger logger = Logger.getLogger(ClientHandler.class.getName());
 
+    private BufferedReader in;
+    private PrintWriter out;
+
     public ClientHandler(Socket clientSocket, DocsManager docsManager) {
         this.socket = clientSocket;
         this.docsManager = docsManager;
@@ -22,9 +25,9 @@ public class ClientHandler implements Runnable {
 
     public void run() {
         try {
-            BufferedReader in = new BufferedReader(
+            in = new BufferedReader(
                     new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            out = new PrintWriter(socket.getOutputStream(), true);
 
             String inputLine;
             out.println("ShareDocs에 오신 것을 환영합니다.");
@@ -39,13 +42,13 @@ public class ClientHandler implements Runnable {
 
                 switch (command) {
                     case "create":
-                        handleCreate(tokens, out);
+                        handleCreate(tokens);
                         break;
                     case "read":
-                        handleRead(tokens, out);
+                        handleRead(tokens);
                         break;
                     case "write":
-                        handleWrite(tokens, in, out);
+                        handleWrite(tokens);
                         break;
                     case "bye":
                         in.close();
@@ -67,7 +70,7 @@ public class ClientHandler implements Runnable {
         return input.getBytes(StandardCharsets.UTF_8).length > maxBytes;
     }
 
-    private void handleCreate(String[] tokens, PrintWriter out) {
+    private void handleCreate(String[] tokens) {
         if (tokens.length < 4) {
             out.println("사용법: create <d_title> <s_#> <s1_title> ... <sk_title>");
             return;
@@ -89,13 +92,13 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        List<String> sectionTitles = new ArrayList<>();
+        List<String> secTitles = new ArrayList<>();
         for (int i = 0; i < sectionCount; i++) {
             if (isOverMaxBytes(tokens[3 + i], 64)) {
                 out.println("섹션 제목이 64바이트를 초과했습니다.");
                 return;
             }
-            sectionTitles.add(tokens[3 + i]);
+            secTitles.add(tokens[3 + i]);
         }
 
         String docTitle = tokens[1];
@@ -104,7 +107,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        CreateResult result = docsManager.createDocument(docTitle, sectionTitles);
+        CreateResult result = docsManager.createDocument(docTitle, secTitles);
         switch (result) {
             case SUCCESS -> out.println("문서 및 섹션이 성공적으로 생성되었습니다.");
             case ALREADY_EXISTS -> out.println("이미 존재하는 문서입니다.");
@@ -112,13 +115,13 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleRead(String[] tokens, PrintWriter out) {
+    private void handleRead(String[] tokens) {
         if (tokens.length == 1) {
-            sendStructure(out);
+            sendStructure();
         } else if (tokens.length == 3) {
             String docTitle = tokens[1];
-            String sectionTitle = tokens[2];
-            List<String> lines = docsManager.readSection(docTitle, sectionTitle);
+            String secTitle = tokens[2];
+            List<String> lines = docsManager.readSection(docTitle, secTitle);
             if (lines == null) {
                 out.println("문서나 섹션이 존재하지 않습니다.");
             } else {
@@ -129,7 +132,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void sendStructure(PrintWriter out) {
+    private void sendStructure() {
         Map<String, List<String>> structure = docsManager.getStructure();
 
         for (Map.Entry<String, List<String>> entry : structure.entrySet()) {
@@ -144,7 +147,51 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleWrite(String[] tokens, PrintWriter out) {
+    public void grantWritePermission(String docTitle, String secTitle) {
+        startWriteSession(docTitle, secTitle);
+    }
 
+    private void handleWrite(String[] tokens) {
+        if (tokens.length != 3) {
+            out.println("사용법: write <d_title> <s_title>");
+            return;
+        }
+
+        String docTitle = tokens[1];
+        String secTitle = tokens[2];
+
+        boolean isLocked = SectionLockManager.getInstance().requestLock(docTitle, secTitle, this);
+
+        if (!isLocked) {
+            out.println("wait");
+            return;
+        }
+
+        startWriteSession(docTitle, secTitle);
+    }
+
+    private void startWriteSession(String docTitle, String secTitle) {
+        out.println("OK");
+        out.println("섹션에 쓸 내용을 입력하세요.");  // 클라이언트가 __END__ 줄을 마지막으로 입력하여 끝을 알림.
+
+        List<String> lines = new ArrayList<>();
+        try {
+            String line;
+            while ((line = in.readLine()) != null && !line.equals("__END__")) {
+                // 클라이언트의 write에 의해 이미 64바이트 줄 단위 전송됨.
+                lines.add(line);
+            }
+
+            docsManager.commitWrite(docTitle, secTitle, lines);
+            out.println("섹션이 성공적으로 저장되었습니다.");
+
+        } catch (IOException e) {
+            logger.severe("쓰기 중 오류: " + e.getMessage());
+            logger.log(Level.SEVERE, "예외 상세:", e);
+
+        } finally {
+            // 락 해제 & 대기 중인 다음 클라이언트가 있다면 권한 넘김
+            SectionLockManager.getInstance().releaseLock(docTitle, secTitle);
+        }
     }
 }

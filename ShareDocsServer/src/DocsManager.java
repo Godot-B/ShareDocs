@@ -9,7 +9,5 @@ public interface DocsManager {
 
     List<String> readSection(String docTitle, String secTitle);
 
-    boolean requestWriteLock(String docTitle, String secTitle);
-
     void commitWrite(String docTitle, String secTitle, List<String> newLines);
 }

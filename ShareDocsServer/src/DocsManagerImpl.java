@@ -16,10 +16,10 @@ public class DocsManagerImpl implements DocsManager {
     private final Path baseDir;
     private static final Logger logger = Logger.getLogger(DocsManagerImpl.class.getName());
 
-
     public DocsManagerImpl(String configPath) {
         String directoryPath = findDirectoryFromConfig(configPath);
         this.baseDir = Paths.get(directoryPath);
+
         try {
             Files.createDirectories(baseDir);
         } catch (IOException e) {
@@ -49,7 +49,6 @@ public class DocsManagerImpl implements DocsManager {
         }
         throw new RuntimeException("docs_directory 설정이 config에 없습니다.");
     }
-
 
     @Override
     public CreateResult createDocument(String docTitle, List<String> secTitles) {
@@ -109,7 +108,9 @@ public class DocsManagerImpl implements DocsManager {
     @Override
     public List<String> readSection(String docTitle, String secTitle) {
         Path sectionPath = baseDir.resolve(docTitle).resolve(secTitle + ".txt");
-        if (!Files.exists(sectionPath)) return null;
+        if (!Files.exists(sectionPath)) {
+            return null;
+        }
         try {
             // 클라이언트의 write에 의해 이미 64바이트 줄 단위 작성된 파일
             return Files.readAllLines(sectionPath, StandardCharsets.UTF_8);
@@ -121,24 +122,17 @@ public class DocsManagerImpl implements DocsManager {
     }
 
     @Override
-    public synchronized boolean requestWriteLock(String docTitle, String sectionTitle) {
-//        // 실제 락은 이후 고급 구현에서 구현 (파일 잠금 또는 메모리 기반 queue)
-//        Path sectionPath = baseDir.resolve(docTitle).resolve(sectionTitle + ".txt");
-//        return Files.exists(sectionPath); // 존재하면 "락 허용" 가정
+    public void commitWrite(String docTitle, String secTitle, List<String> newLines) {
+        Path sectionPath = baseDir.resolve(docTitle).resolve(secTitle + ".txt");
 
-        return true;
-    }
-
-    @Override
-    public void commitWrite(String docTitle, String sectionTitle, List<String> newLines) {
-        Path sectionPath = baseDir.resolve(docTitle).resolve(sectionTitle + ".txt");
         try (BufferedWriter writer = Files.newBufferedWriter(sectionPath, StandardCharsets.UTF_8)) {
             for (String line : newLines) {
                 writer.write(line);
                 writer.newLine();
             }
         } catch (IOException e) {
-            System.err.println("IOException 발생!!:");
+            logger.severe("쓰기 저장 중 실패: " + e.getMessage());
+            logger.log(Level.SEVERE, "예외 상세", e);
         }
     }
 }
