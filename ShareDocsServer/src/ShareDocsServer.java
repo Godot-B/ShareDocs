@@ -23,11 +23,11 @@ public class ShareDocsServer {
         System.out.println("서버가 포트 " + port + "에서 대기 중...");
 
         while (true) {
-            Socket clientSocket = serverSocket.accept();
-            System.out.println("클라이언트 " + clientSocket.getInetAddress() + ":" + clientSocket.getPort() + " 접속됨");
+            Socket socket = serverSocket.accept();
+            System.out.println("클라이언트 " + socket.getInetAddress() + ":" + socket.getPort() + " 접속됨");
 
             // 클라이언트마다 독립 스레드
-            new Thread(new ClientHandler(clientSocket, docsManager)).start();
+            new Thread(new ClientHandler(socket, docsManager)).start();
         }
     }
 

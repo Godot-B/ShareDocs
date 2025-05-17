@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -7,7 +8,7 @@ public interface DocsManager {
 
     Map<String, List<String>> getStructure();
 
-    List<String> readSection(String docTitle, String secTitle);
+    List<String> readSection(String docTitle, String secTitle) throws IOException;
 
     void commitWrite(String docTitle, String secTitle, List<String> newLines);
 }

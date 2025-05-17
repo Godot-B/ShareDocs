@@ -18,8 +18,8 @@ public class ClientHandler implements Runnable {
     private BufferedReader in;
     private PrintWriter out;
 
-    public ClientHandler(Socket clientSocket, DocsManager docsManager) {
-        this.socket = clientSocket;
+    public ClientHandler(Socket socket, DocsManager docsManager) {
+        this.socket = socket;
         this.docsManager = docsManager;
     }
 
@@ -30,10 +30,10 @@ public class ClientHandler implements Runnable {
             out = new PrintWriter(socket.getOutputStream(), true);
 
             String inputLine;
-            out.println("ShareDocs에 오신 것을 환영합니다.");
+            out.println("ShareDocs에 오신 것을 환영합니다." +
+                    "\n명령어를 입력하세요. (create, read, write, bye):");
 
             while ((inputLine = in.readLine()) != null) {
-                out.println("명령어를 입력하세요. (create, read, write, bye):");
                 inputLine = inputLine.trim();   // 명령문 앞뒤 공백 제거
                 if (inputLine.isEmpty()) continue;
 
@@ -115,7 +115,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleRead(String[] tokens) {
+    private void handleRead(String[] tokens) throws IOException {
         if (tokens.length == 1) {
             sendStructure();
         } else if (tokens.length == 3) {
@@ -126,6 +126,7 @@ public class ClientHandler implements Runnable {
                 out.println("문서나 섹션이 존재하지 않습니다.");
             } else {
                 lines.forEach(out::println);
+                out.println("__END__");
             }
         } else {
             out.println("사용법: read 또는 read <d_title> <s_title>");
@@ -141,10 +142,11 @@ public class ClientHandler implements Runnable {
 
             out.println(docTitle);  // 문서 제목
             for (String section : sections) {
-                out.println(section);  // 번호 포함된 섹션 제목
+                out.println(section);  // prefix 포함한 섹션 제목
             }
-            out.println();  // 문서 간 줄바꿈
+            out.println("__SEP__");  // 문서 구분자
         }
+        out.println("__END__");  // 이스케이프
     }
 
     public void grantWritePermission(String docTitle, String secTitle) {

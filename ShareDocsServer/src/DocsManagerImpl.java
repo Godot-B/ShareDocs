@@ -59,7 +59,7 @@ public class DocsManagerImpl implements DocsManager {
 
         try {
             Files.createDirectory(docPath);
-            int seqNum = 1;
+            int seqNum = 1;  // section 생성 순서 보장
             for (String section : secTitles) {
                 String prefix = String.valueOf(seqNum++);
                 Path sectionFile = docPath.resolve(prefix + ". " + section + ".txt");
@@ -90,6 +90,7 @@ public class DocsManagerImpl implements DocsManager {
                         logger.log(Level.SEVERE, "예외 상세:", e);
                     }
 
+                    // 순서 보장
                     sections.sort(Comparator.comparingInt(s -> {
                         String prefix = s.split("\\.", 2)[0].trim();  // "1. 개요" → "1"
                         return Integer.parseInt(prefix);
@@ -106,20 +107,57 @@ public class DocsManagerImpl implements DocsManager {
     }
 
     @Override
-    public List<String> readSection(String docTitle, String secTitle) {
-        Path sectionPath = baseDir.resolve(docTitle).resolve(secTitle + ".txt");
-        if (!Files.exists(sectionPath)) {
+    public List<String> readSection(String docTitle, String secTitleWithoutPrefix) throws IOException {
+        // prefix, 즉 seq num 찾기 위함
+        Path sectionPath = findSectionWithPrefix(docTitle, secTitleWithoutPrefix);
+        if (sectionPath == null) {
             return null;
         }
         try {
-            // 클라이언트의 write에 의해 이미 64바이트 줄 단위 작성된 파일
-            return Files.readAllLines(sectionPath, StandardCharsets.UTF_8);
+            List<String> lines = new ArrayList<>();
+
+            // 문서 제목
+            lines.add(docTitle);
+
+            // prefix 포함한 섹션 제목
+            String sectionFileName = sectionPath.getFileName().toString();  // "2. TCP 소켓.txt"
+            lines.add(sectionFileName.replaceFirst("\\.txt$", ""));  // "2. TCP 소켓"
+
+            // 섹션 내용
+            lines.addAll(Files.readAllLines(sectionPath, StandardCharsets.UTF_8));
+
+            return lines;
+
         } catch (IOException e) {
             logger.severe("섹션 읽기 실패: " + sectionPath + " - " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세", e);
             return null;
         }
     }
+
+    private Path findSectionWithPrefix(String docTitle, String secTitleWithoutPrefix) throws IOException {
+        Path docDir = baseDir.resolve(docTitle);
+
+        if (!Files.exists(docDir) || !Files.isDirectory(docDir)) {
+            return null;
+        }
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(docDir, "*.txt")) {
+            for (Path file : stream) {
+                String filename = file.getFileName().toString();  // 예: "2. TCP 소켓.txt"
+                String rawTitle = filename.replaceFirst("\\.txt$", "");  // "2. TCP 소켓"
+
+                String[] parts = rawTitle.split("\\.", 2);  // prefix와 분리
+                String actualTitle = parts[1].trim();  // "TCP 소켓"
+                if (actualTitle.equals(secTitleWithoutPrefix)) {
+                    return file;
+                }
+            }
+        }
+
+        return null;  // 못 찾은 경우
+    }
+
 
     @Override
     public void commitWrite(String docTitle, String secTitle, List<String> newLines) {
