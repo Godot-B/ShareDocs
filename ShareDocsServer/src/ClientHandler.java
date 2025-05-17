@@ -172,11 +172,12 @@ public class ClientHandler implements Runnable {
 
     private void startWriteSession(String docTitle, String secTitle) {
         out.println("OK");
-        out.println("섹션에 쓸 내용을 입력하세요.");  // 클라이언트가 __END__ 줄을 마지막으로 입력하여 끝을 알림.
+        out.println("섹션에 쓸 내용을 입력하세요.");
 
         List<String> lines = new ArrayList<>();
         try {
             String line;
+            // 클라이언트가 __END__ 줄을 마지막으로 입력하여 끝을 알림.
             while ((line = in.readLine()) != null && !line.equals("__END__")) {
                 // 클라이언트의 write에 의해 이미 64바이트 줄 단위 전송됨.
                 lines.add(line);
