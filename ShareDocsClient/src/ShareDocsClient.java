@@ -30,7 +30,7 @@ public class ShareDocsClient {
         String userLine;
 
         while ((userLine = userInput.readLine()) != null) {
-
+            if (userLine.isEmpty()) continue;
             out.println(userLine);
 
             List<String> tokens = parseTokens(userLine);
