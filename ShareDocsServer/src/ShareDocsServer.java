@@ -8,7 +8,7 @@ import java.util.List;
 
 public class ShareDocsServer {
 
-    static String configPath = "config.txt";
+    static String configPath = "/Users/sungwoo/Projects/ShareDocsProject/ShareDocsServer/src/config.txt";
 
     static String ip = "localhost";
 

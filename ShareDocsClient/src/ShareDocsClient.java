@@ -3,6 +3,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ShareDocsClient {
 
@@ -18,7 +22,9 @@ public class ShareDocsClient {
         // PrintWriter는 버퍼링이 있으므로 autoFlush 진리값을 true로 설정
         out = new PrintWriter(socket.getOutputStream(), true);
 
-        System.out.println(getSingleResponse());  // 환영 메시지 & 안내 response
+        // 환영 메시지 & 안내 response
+        System.out.println(getSingleResponse());
+        System.out.println(getSingleResponse());
 
         BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
         String userLine;
@@ -27,8 +33,10 @@ public class ShareDocsClient {
 
             out.println(userLine);
 
-            String[] tokens = userLine.split(" ");
-            String command = tokens[0];
+            List<String> tokens = parseTokens(userLine);
+            if (tokens.isEmpty()) continue;
+            String command = tokens.get(0);
+
             switch (command) {
                 case "write":
                     handleWrite(tokens);
@@ -49,15 +57,28 @@ public class ShareDocsClient {
         System.out.println("클라이언트 종료.");
     }
 
-    private static void handleWrite(String[] tokens) {
+    private static List<String> parseTokens(String inputLine) {
+        List<String> tokens = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\"([^\"]*)\"|(\\S+)").matcher(inputLine);
+        while (matcher.find()) {
+            if (matcher.group(1) != null) {
+                tokens.add(matcher.group(1));  // "..." 안의 값
+            } else {
+                tokens.add(matcher.group(2));  // 숫자 또는 단일 단어
+            }
+        }
+        return tokens;
+    }
+
+    private static void handleWrite(List<String> tokens) {
         // TODO 0. 대기 여부 처리
         // TODO 1. 클라이언트가 user의 편리한 입력 인터페이스 제공
         // TODO 2. 64KB 줄 단위 out.println, 끝을 알리는 __END__를 붙임
     }
 
-    private static void handleRead(String[] tokens) throws IOException {
+    private static void handleRead(List<String> tokens) throws IOException {
         // read
-        if (tokens.length == 1) {
+        if (tokens.size() == 1) {
             String line;
             while ((line = in.readLine()) != null && !line.equals("__END__")) {
                 System.out.println(line);  // 문서 제목 출력
@@ -73,7 +94,7 @@ public class ShareDocsClient {
 
         String response = getSingleResponse();
         // read <d_title> <s_title>>
-        if (response.equals(tokens[1])) {
+        if (tokens.size() == 3 && response.equals(tokens.get(1))) {
             System.out.println(response);  // 문서 제목 출력
             String line;
             System.out.println("\t" + getSingleResponse());  // 섹션 제목 출력

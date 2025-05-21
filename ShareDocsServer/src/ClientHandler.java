@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ClientHandler implements Runnable {
     private final Socket socket;
@@ -37,8 +39,9 @@ public class ClientHandler implements Runnable {
                 inputLine = inputLine.trim();   // 명령문 앞뒤 공백 제거
                 if (inputLine.isEmpty()) continue;
 
-                String[] tokens = inputLine.split("\\s+");  // 명령문을 공백 기준으로 분리
-                String command = tokens[0].toLowerCase();
+                List<String> tokens = parseTokens(inputLine);
+                if (tokens.isEmpty()) continue;
+                String command = tokens.get(0);
 
                 switch (command) {
                     case "create":
@@ -66,19 +69,32 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    private List<String> parseTokens(String inputLine) {
+        List<String> tokens = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\"([^\"]*)\"|(\\S+)").matcher(inputLine);
+        while (matcher.find()) {
+            if (matcher.group(1) != null) {
+                tokens.add(matcher.group(1));  // "..." 안의 값
+            } else {
+                tokens.add(matcher.group(2));  // 숫자 또는 단일 단어
+            }
+        }
+        return tokens;
+    }
+
     public boolean isOverMaxBytes(String input, int maxBytes) {
         return input.getBytes(StandardCharsets.UTF_8).length > maxBytes;
     }
 
-    private void handleCreate(String[] tokens) {
-        if (tokens.length < 4) {
+    private void handleCreate(List<String> tokens) {
+        if (tokens.size() < 4) {
             out.println("사용법: create <d_title> <s_#> <s1_title> ... <sk_title>");
             return;
         }
 
         int sectionCount;
         try {
-            sectionCount = Integer.parseInt(tokens[2]);
+            sectionCount = Integer.parseInt(tokens.get(2));
         } catch (NumberFormatException e) {
             out.println("s_#에는 숫자를 입력해주세요.");
             return;
@@ -87,21 +103,21 @@ public class ClientHandler implements Runnable {
             out.println("문서 하나 당 섹션 수는 최대 10개입니다.");
             return;
         }
-        if (tokens.length < 3 + sectionCount) {
+        if (tokens.size() < 3 + sectionCount) {
             out.println("만들고자 하는 섹션 수가 " + sectionCount + "개보다 작습니다.");
             return;
         }
 
         List<String> secTitles = new ArrayList<>();
         for (int i = 0; i < sectionCount; i++) {
-            if (isOverMaxBytes(tokens[3 + i], 64)) {
+            if (isOverMaxBytes(tokens.get(3 + i), 64)) {
                 out.println("섹션 제목이 64바이트를 초과했습니다.");
                 return;
             }
-            secTitles.add(tokens[3 + i]);
+            secTitles.add(tokens.get(3 + i));
         }
 
-        String docTitle = tokens[1];
+        String docTitle = tokens.get(1);
         if (isOverMaxBytes(docTitle, 64)) {
             out.println("문서 제목이 64바이트를 초과했습니다.");
             return;
@@ -115,12 +131,12 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleRead(String[] tokens) throws IOException {
-        if (tokens.length == 1) {
+    private void handleRead(List<String> tokens) throws IOException {
+        if (tokens.size() == 1) {
             sendStructure();
-        } else if (tokens.length == 3) {
-            String docTitle = tokens[1];
-            String secTitle = tokens[2];
+        } else if (tokens.size() == 3) {
+            String docTitle = tokens.get(1);
+            String secTitle = tokens.get(2);
             List<String> lines = docsManager.readSection(docTitle, secTitle);
             if (lines == null) {
                 out.println("문서나 섹션이 존재하지 않습니다.");
@@ -153,14 +169,14 @@ public class ClientHandler implements Runnable {
         startWriteSession(docTitle, secTitle);
     }
 
-    private void handleWrite(String[] tokens) {
-        if (tokens.length != 3) {
+    private void handleWrite(List<String> tokens) {
+        if (tokens.size() != 3) {
             out.println("사용법: write <d_title> <s_title>");
             return;
         }
 
-        String docTitle = tokens[1];
-        String secTitle = tokens[2];
+        String docTitle = tokens.get(1);
+        String secTitle = tokens.get(2);
 
         boolean isLocked = SectionLockManager.getInstance().requestLock(docTitle, secTitle, this);
 

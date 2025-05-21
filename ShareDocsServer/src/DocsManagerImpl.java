@@ -47,7 +47,7 @@ public class DocsManagerImpl implements DocsManager {
         } catch (IOException e) {
             throw new RuntimeException("config 파일 읽기 실패: " + configPath, e);
         }
-        throw new RuntimeException("docs_directory 설정이 config에 없습니다.");
+        return configPath;
     }
 
     @Override
