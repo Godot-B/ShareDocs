@@ -1,3 +1,11 @@
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import request.CreateRequest;
+import request.ReadRequest;
+import request.WriteRequest;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -27,39 +35,47 @@ public class ClientHandler implements Runnable {
 
     public void run() {
         try {
-            in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()));
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
-            String inputLine;
             out.println("ShareDocs에 오신 것을 환영합니다." +
                     "\n명령어를 입력하세요. (create, read, write, bye):");
 
-            while ((inputLine = in.readLine()) != null) {
-                inputLine = inputLine.trim();   // 명령문 앞뒤 공백 제거
-                if (inputLine.isEmpty()) continue;
+            Gson gson = new Gson();
+            String line;
+            while ((line = in.readLine()) != null) {
+                JsonElement element = JsonParser.parseString(line);
+                if (!element.isJsonObject()) {
+                    out.println("status: error");
+                    out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
+                    continue;
+                }
+                JsonObject json = element.getAsJsonObject();
 
-                List<String> tokens = parseTokens(inputLine);
-                if (tokens.isEmpty()) continue;
-                String command = tokens.get(0);
+                String command = json.get("command").getAsString();
 
                 switch (command) {
                     case "create":
-                        handleCreate(tokens);
+                        CreateRequest createReq = gson.fromJson(json, CreateRequest.class);
+                        handleCreate(createReq);
                         break;
                     case "read":
-                        handleRead(tokens);
+                        ReadRequest readReq = gson.fromJson(json, ReadRequest.class);
+                        handleRead(readReq);
                         break;
                     case "write":
-                        handleWrite(tokens);
+                        WriteRequest writeReq = gson.fromJson(json, WriteRequest.class);
+                        handleWrite(writeReq);
                         break;
                     case "bye":
                         in.close();
                         out.close();
                         socket.close();
-                        System.out.println("클라이언트 " + socket.getInetAddress() + ":" + socket.getPort() + " 연결 종료됨.");
+                        System.out.println("클라이언트 " + socket.getInetAddress() +
+                                ":" + socket.getPort() + " 연결 종료됨.");
                         return;
                     default:
+                        out.println("status: error");
                         out.println("잘못된 명령어입니다: " + command);
                 }
             }
@@ -69,46 +85,47 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private List<String> parseTokens(String inputLine) {
-        List<String> tokens = new ArrayList<>();
-        Matcher matcher = Pattern.compile("\"([^\"]*)\"|(\\S+)").matcher(inputLine);
-        while (matcher.find()) {
-            if (matcher.group(1) != null) {
-                tokens.add(matcher.group(1));  // "..." 안의 값
-            } else {
-                tokens.add(matcher.group(2));  // 숫자 또는 단일 단어
+    private void handleCreate(CreateRequest request) {
+
+        String docTitle = request.getDocTitle();
+        List<String> sectionTitles = request.getSectionTitles();
+        CreateResult result = docsManager.createDocument(docTitle, sectionTitles);
+
+        switch (result) {
+            case SUCCESS -> {
+                out.println("status: ok");
+                out.println("문서 및 섹션이 성공적으로 생성되었습니다.");
+            }
+            case ALREADY_EXISTS -> {
+                out.println("status: error");
+                out.println("이미 존재하는 문서입니다.");
+            }
+            case IO_EXCEPTION -> {
+                out.println("status: error");
+                out.println("문서 생성 중에 오류가 발생하였습니다.");
             }
         }
-        return tokens;
     }
 
+    private void handleRead(ReadRequest request) throws IOException {
+        if (request.getHasArgs()) {
+            String docTitle = request.getDocTitle();
+            String sectionTitle = request.getSectionTitle();
+            List<String> lines = docsManager.readSection(docTitle, sectionTitle);
 
-    private void handleCreate(List<String> tokens) {
-
-
-        CreateResult result = docsManager.createDocument(docTitle, secTitles);
-        switch (result) {
-            case SUCCESS -> out.println("문서 및 섹션이 성공적으로 생성되었습니다.");
-            case ALREADY_EXISTS -> out.println("이미 존재하는 문서입니다.");
-            case IO_EXCEPTION -> out.println("문서 생성 중에 오류가 발생하였습니다.");
-        }
-    }
-
-    private void handleRead(List<String> tokens) throws IOException {
-        if (tokens.size() == 1) {
-            sendStructure();
-        } else if (tokens.size() == 3) {
-            String docTitle = tokens.get(1);
-            String secTitle = tokens.get(2);
-            List<String> lines = docsManager.readSection(docTitle, secTitle);
             if (lines == null) {
+                out.println("status: error");
                 out.println("문서나 섹션이 존재하지 않습니다.");
+
             } else {
+                out.println("status: ok");
                 lines.forEach(out::println);
                 out.println("__END__");
             }
+
         } else {
-            out.println("사용법: read 또는 read <d_title> <s_title>");
+            out.println("status: ok");
+            sendStructure();
         }
     }
 
@@ -128,31 +145,28 @@ public class ClientHandler implements Runnable {
         out.println("__END__");  // 이스케이프
     }
 
-    public void grantWritePermission(String docTitle, String secTitle) {
-        startWriteSession(docTitle, secTitle);
+    public void grantWritePermission(String docTitle, String sectionTitle) {
+        startWriteSession(docTitle, sectionTitle);
     }
 
-    private void handleWrite(List<String> tokens) {
-        if (tokens.size() != 3) {
-            out.println("사용법: write <d_title> <s_title>");
-            return;
-        }
+    private void handleWrite(WriteRequest request) {
 
-        String docTitle = tokens.get(1);
-        String secTitle = tokens.get(2);
+        String docTitle = request.getDocTitle();
+        String sectionTitle = request.getSectionTitle();
 
-        boolean isLocked = SectionLockManager.getInstance().requestLock(docTitle, secTitle, this);
+        boolean isLocked = SectionLockManager.getInstance()
+                .requestLock(docTitle, sectionTitle, this);
 
         if (!isLocked) {
-            out.println("wait");
+            out.println("status: wait");
             return;
         }
 
-        startWriteSession(docTitle, secTitle);
+        startWriteSession(docTitle, sectionTitle);
     }
 
-    private void startWriteSession(String docTitle, String secTitle) {
-        out.println("OK");
+    private void startWriteSession(String docTitle, String sectionTitle) {
+        out.println("status: ok");
         out.println("섹션에 쓸 내용을 입력하세요.");
 
         List<String> lines = new ArrayList<>();
@@ -164,7 +178,7 @@ public class ClientHandler implements Runnable {
                 lines.add(line);
             }
 
-            docsManager.commitWrite(docTitle, secTitle, lines);
+            docsManager.commitWrite(docTitle, sectionTitle, lines);
             out.println("섹션이 성공적으로 저장되었습니다.");
 
         } catch (IOException e) {
@@ -173,7 +187,7 @@ public class ClientHandler implements Runnable {
 
         } finally {
             // 락 해제 & 대기 중인 다음 클라이언트가 있다면 권한 넘김
-            SectionLockManager.getInstance().releaseLock(docTitle, secTitle);
+            SectionLockManager.getInstance().releaseLock(docTitle, sectionTitle);
         }
     }
 }

@@ -1,1 +1,1 @@
-docs_server = localhost 12345
+docs_directory = C:\Users\sungwoo\Desktop\Projects\ShareDocsProject\ShareDocsServer\shared_docs

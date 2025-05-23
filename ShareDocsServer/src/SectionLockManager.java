@@ -23,12 +23,12 @@ public class SectionLockManager {
     // 문서-섹션 key 값으로 구별되는 Section 해시 테이블
     private final Map<String, Section> lockMap = new ConcurrentHashMap<>();  // Thread-safe
 
-    private String key(String docTitle, String secTitle) {
-        return docTitle + "_" + secTitle;
+    private String key(String docTitle, String sectionTitle) {
+        return docTitle + "_" + sectionTitle;
     }
 
-    public boolean requestLock(String docTitle, String secTitle, ClientHandler requester) {
-        String key = key(docTitle, secTitle);
+    public boolean requestLock(String docTitle, String sectionTitle, ClientHandler requester) {
+        String key = key(docTitle, sectionTitle);
         Section section = lockMap.computeIfAbsent(key, k -> new Section());
 
         boolean isLocked = section.lock.tryLock();
@@ -43,8 +43,8 @@ public class SectionLockManager {
         }
     }
 
-    public void releaseLock(String docTitle, String secTitle) {
-        String key = key(docTitle, secTitle);
+    public void releaseLock(String docTitle, String sectionTitle) {
+        String key = key(docTitle, sectionTitle);
         Section section = lockMap.get(key);
         if (section == null) {
             return;
@@ -60,7 +60,7 @@ public class SectionLockManager {
                 ClientHandler next = section.waitingQueue.poll();
 
                 // 다음 클라이언트에게 write 권한 주기
-                next.grantWritePermission(docTitle, secTitle);
+                next.grantWritePermission(docTitle, sectionTitle);
 
                 // 락은 유지됨
             }

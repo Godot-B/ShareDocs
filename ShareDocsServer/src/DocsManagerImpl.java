@@ -51,7 +51,7 @@ public class DocsManagerImpl implements DocsManager {
     }
 
     @Override
-    public CreateResult createDocument(String docTitle, List<String> secTitles) {
+    public CreateResult createDocument(String docTitle, List<String> sectionTitles) {
         Path docPath = baseDir.resolve(docTitle);
         if (Files.exists(docPath)) {
             return CreateResult.ALREADY_EXISTS;
@@ -60,7 +60,7 @@ public class DocsManagerImpl implements DocsManager {
         try {
             Files.createDirectory(docPath);
             int seqNum = 1;  // section 생성 순서 보장
-            for (String section : secTitles) {
+            for (String section : sectionTitles) {
                 String prefix = String.valueOf(seqNum++);
                 Path sectionFile = docPath.resolve(prefix + ". " + section + ".txt");
                 Files.createFile(sectionFile);
@@ -107,9 +107,9 @@ public class DocsManagerImpl implements DocsManager {
     }
 
     @Override
-    public List<String> readSection(String docTitle, String secTitleWithoutPrefix) throws IOException {
+    public List<String> readSection(String docTitle, String sectionTitle) throws IOException {
         // prefix, 즉 seq num 찾기 위함
-        Path sectionPath = findSectionWithPrefix(docTitle, secTitleWithoutPrefix);
+        Path sectionPath = findSectionWithPrefix(docTitle, sectionTitle);
         if (sectionPath == null) {
             return null;
         }
@@ -160,8 +160,8 @@ public class DocsManagerImpl implements DocsManager {
 
 
     @Override
-    public void commitWrite(String docTitle, String secTitle, List<String> newLines) {
-        Path sectionPath = baseDir.resolve(docTitle).resolve(secTitle + ".txt");
+    public void commitWrite(String docTitle, String sectionTitle, List<String> newLines) {
+        Path sectionPath = baseDir.resolve(docTitle).resolve(sectionTitle + ".txt");
 
         try (BufferedWriter writer = Files.newBufferedWriter(sectionPath, StandardCharsets.UTF_8)) {
             for (String line : newLines) {
