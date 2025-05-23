@@ -82,46 +82,9 @@ public class ClientHandler implements Runnable {
         return tokens;
     }
 
-    public boolean isOverMaxBytes(String input, int maxBytes) {
-        return input.getBytes(StandardCharsets.UTF_8).length > maxBytes;
-    }
 
     private void handleCreate(List<String> tokens) {
-        if (tokens.size() < 4) {
-            out.println("사용법: create <d_title> <s_#> <s1_title> ... <sk_title>");
-            return;
-        }
 
-        int sectionCount;
-        try {
-            sectionCount = Integer.parseInt(tokens.get(2));
-        } catch (NumberFormatException e) {
-            out.println("s_#에는 숫자를 입력해주세요.");
-            return;
-        }
-        if (sectionCount > 10) {
-            out.println("문서 하나 당 섹션 수는 최대 10개입니다.");
-            return;
-        }
-        if (tokens.size() < 3 + sectionCount) {
-            out.println("만들고자 하는 섹션 수가 " + sectionCount + "개보다 작습니다.");
-            return;
-        }
-
-        List<String> secTitles = new ArrayList<>();
-        for (int i = 0; i < sectionCount; i++) {
-            if (isOverMaxBytes(tokens.get(3 + i), 64)) {
-                out.println("섹션 제목이 64바이트를 초과했습니다.");
-                return;
-            }
-            secTitles.add(tokens.get(3 + i));
-        }
-
-        String docTitle = tokens.get(1);
-        if (isOverMaxBytes(docTitle, 64)) {
-            out.println("문서 제목이 64바이트를 초과했습니다.");
-            return;
-        }
 
         CreateResult result = docsManager.createDocument(docTitle, secTitles);
         switch (result) {

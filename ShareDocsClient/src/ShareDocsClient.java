@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -35,20 +36,27 @@ public class ShareDocsClient {
 
             List<String> tokens = parseTokens(userLine);
             if (tokens.isEmpty()) continue;
-            String command = tokens.get(0);
+            String command = tokens.get(0).toLowerCase();
 
             switch (command) {
-                case "write":
-                    handleWrite(tokens);
+                case "create":
+                    handleCreate(tokens);
                     break;
                 case "read":
                     handleRead(tokens);
                     break;
+                case "write":
+                    handleWrite(tokens);
+                    break;
+                case "bye":
+                    in.close();
+                    out.close();
+                    socket.close();
+                    System.out.println("클라이언트 " + socket.getInetAddress() + ":" + socket.getPort() + " 연결 종료됨.");
+                    return;
                 default:
                     System.out.println(getSingleResponse());
             }
-
-            if (userLine.equalsIgnoreCase("bye")) break;
         }
 
         in.close();
@@ -68,6 +76,35 @@ public class ShareDocsClient {
             }
         }
         return tokens;
+    }
+
+    private static void handleCreate(List<String> tokens) {
+        if (tokens.size() < 4) {
+            System.out.println("사용법: create <d_title> <s_#> <s1_title> ... <sk_title>");
+            return;
+        }
+
+        int sectionCount;
+        try {
+            sectionCount = Integer.parseInt(tokens.get(2));
+        } catch (NumberFormatException e) {
+            System.out.println("s_#에는 숫자를 입력해주세요.");
+            return;
+        }
+        if (sectionCount > 10) {
+            System.out.println("문서 하나 당 섹션 수는 최대 10개입니다.");
+            return;
+        }
+        if (tokens.size() < 3 + sectionCount) {
+            System.out.println("만들고자 하는 섹션 수가 " + sectionCount + "개보다 작습니다.");
+            return;
+        }
+
+        boolean isCreated = EncodeAndRequest.create(tokens, out);
+        if (!isCreated) {
+            return;
+        }
+        System.out.println(getSingleResponse());
     }
 
     private static void handleWrite(List<String> tokens) {
