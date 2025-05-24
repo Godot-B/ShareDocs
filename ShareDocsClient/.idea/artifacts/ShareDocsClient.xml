@@ -1,0 +1,9 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="ShareDocsClient">
+    <output-path>$PROJECT_DIR$/out/artifacts/ShareDocsClient</output-path>
+    <root id="archive" name="ShareDocsClient.jar">
+      <element id="module-output" name="ShareDocsClient" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/gson-2.13.1.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

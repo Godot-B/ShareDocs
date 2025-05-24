@@ -1,7 +1,4 @@
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -10,6 +7,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 
 public class DocsManagerImpl implements DocsManager {
 
@@ -106,13 +104,40 @@ public class DocsManagerImpl implements DocsManager {
         return result;
     }
 
+    public Path locateSecPath(String docTitle, String secTitleWithoutPrefix) {
+        Path docDir = baseDir.resolve(docTitle);
+
+        if (!Files.exists(docDir) || !Files.isDirectory(docDir)) {
+            return null;
+        }
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(docDir, "*.txt")) {
+            for (Path file : stream) {
+                String filename = file.getFileName().toString();  // 예: "2. TCP 소켓.txt"
+                String rawTitle = filename.replaceFirst("\\.txt$", "");  // "2. TCP 소켓"
+
+                String[] parts = rawTitle.split("\\.", 2);  // prefix와 분리
+                String actualTitle = parts[1].trim();  // "TCP 소켓"
+                if (actualTitle.equals(secTitleWithoutPrefix)) {
+                    return file;
+                }
+            }
+        } catch (IOException e) {
+            logger.severe("섹션 제목 읽기 중 오류: " + e.getMessage());
+            logger.log(Level.SEVERE, "예외 상세:", e);
+        }
+
+        return null;  // 못 찾은 경우
+    }
+
     @Override
-    public List<String> readSection(String docTitle, String sectionTitle) throws IOException {
-        // prefix, 즉 seq num 찾기 위함
-        Path sectionPath = findSectionWithPrefix(docTitle, sectionTitle);
+    public List<String> readSection(String docTitle, String secTitle) {
+
+        Path sectionPath = locateSecPath(docTitle, secTitle);
         if (sectionPath == null) {
             return null;
         }
+
         try {
             List<String> lines = new ArrayList<>();
 
@@ -135,42 +160,17 @@ public class DocsManagerImpl implements DocsManager {
         }
     }
 
-    private Path findSectionWithPrefix(String docTitle, String secTitleWithoutPrefix) throws IOException {
-        Path docDir = baseDir.resolve(docTitle);
-
-        if (!Files.exists(docDir) || !Files.isDirectory(docDir)) {
-            return null;
-        }
-
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(docDir, "*.txt")) {
-            for (Path file : stream) {
-                String filename = file.getFileName().toString();  // 예: "2. TCP 소켓.txt"
-                String rawTitle = filename.replaceFirst("\\.txt$", "");  // "2. TCP 소켓"
-
-                String[] parts = rawTitle.split("\\.", 2);  // prefix와 분리
-                String actualTitle = parts[1].trim();  // "TCP 소켓"
-                if (actualTitle.equals(secTitleWithoutPrefix)) {
-                    return file;
-                }
-            }
-        }
-
-        return null;  // 못 찾은 경우
-    }
-
-
     @Override
-    public void commitWrite(String docTitle, String sectionTitle, List<String> newLines) {
-        Path sectionPath = baseDir.resolve(docTitle).resolve(sectionTitle + ".txt");
+    public void writeSection(String docTitle, String sectionTitle, List<String> lines) throws IOException {
+        Path sectionPath = locateSecPath(docTitle, sectionTitle);
+        if (sectionPath == null) {
+            throw new IOException("해당 섹션을 찾을 수 없습니다: " + docTitle + "/" + sectionTitle);
+        }
 
-        try (BufferedWriter writer = Files.newBufferedWriter(sectionPath, StandardCharsets.UTF_8)) {
-            for (String line : newLines) {
-                writer.write(line);
-                writer.newLine();
+        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(sectionPath, StandardCharsets.UTF_8))) {
+            for (String line : lines) {
+                writer.println(line);
             }
-        } catch (IOException e) {
-            logger.severe("쓰기 저장 중 실패: " + e.getMessage());
-            logger.log(Level.SEVERE, "예외 상세", e);
         }
     }
 }

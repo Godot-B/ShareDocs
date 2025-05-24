@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -8,7 +9,9 @@ public interface DocsManager {
 
     Map<String, List<String>> getStructure();
 
+    Path locateSecPath(String docTitle, String secTitleWithoutPrefix);
+
     List<String> readSection(String docTitle, String sectionTitle) throws IOException;
 
-    void commitWrite(String docTitle, String sectionTitle, List<String> newLines);
+    void writeSection(String docTitle, String sectionTitle, List<String> lines) throws IOException;
 }

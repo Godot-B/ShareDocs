@@ -7,10 +7,14 @@ import java.net.Socket;
 public class ShareDocsClient {
 
     public static void main(String[] args) throws IOException {
-        String ServerIP = "localhost";
-        int port = 12345;
-        Socket socket = new Socket(ServerIP, port);
+        if (args.length != 2) {
+            System.out.println("사용법: ./myclient <client IP> <client port>");
+            return;
+        }
+        String serverIp = args[0];
+        int port = Integer.parseInt(args[1]);
 
+        Socket socket = new Socket(serverIp, port);
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         // PrintWriter는 버퍼링이 있으므로 autoFlush 진리값을 true로 설정
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
@@ -28,9 +32,9 @@ public class ShareDocsClient {
             if (!keepRunning) break;
         }
 
+        socket.close();  // TCP FIN 전송됨
         in.close();
         out.close();
-        socket.close();
         System.out.println("클라이언트 종료.");
     }
 }

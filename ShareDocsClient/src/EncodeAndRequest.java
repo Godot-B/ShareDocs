@@ -1,6 +1,7 @@
 import com.google.gson.Gson;
 import request.CreateRequest;
 import request.ReadRequest;
+import request.WriteAuthorRequest;
 
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -75,6 +76,19 @@ public class EncodeAndRequest {
         out.println(json);
     }
 
-    public static void write(List<String> tokens) {
+    public static void writeAuthor(List<String> tokens, PrintWriter out) {
+        String docTitle = tokens.get(1);
+        String sectionTitle = tokens.get(2);
+
+        WriteAuthorRequest request = new WriteAuthorRequest();
+        request.setDocTitle(docTitle);
+        request.setSectionTitle(sectionTitle);
+
+        String json = gson.toJson(request);
+        out.println(json);
+    }
+
+    public static void bye(PrintWriter out) {
+        out.println("{\"command\":\"bye\"}");
     }
 }

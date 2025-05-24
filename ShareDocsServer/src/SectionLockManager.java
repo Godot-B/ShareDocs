@@ -1,69 +1,23 @@
-import java.util.LinkedList;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class SectionLockManager {
 
-    // Singleton 인스턴스
+    // 싱글톤 instance
     private static final SectionLockManager instance = new SectionLockManager();
     protected SectionLockManager() {}
+
+    private final Map<String, SectionLock> lockMap = new ConcurrentHashMap<>();
 
     public static SectionLockManager getInstance() {
         return instance;
     }
 
-    private static class Section {
-        final Lock lock = new ReentrantLock(true); // 공정성 보장 & 데드락 방지
-        final Queue<ClientHandler> waitingQueue = new LinkedList<>();  // FIFO
+    private String key(String doc, String sec) {
+        return doc + "::" + sec;
     }
 
-    // 문서-섹션 key 값으로 구별되는 Section 해시 테이블
-    private final Map<String, Section> lockMap = new ConcurrentHashMap<>();  // Thread-safe
-
-    private String key(String docTitle, String sectionTitle) {
-        return docTitle + "_" + sectionTitle;
-    }
-
-    public boolean requestLock(String docTitle, String sectionTitle, ClientHandler requester) {
-        String key = key(docTitle, sectionTitle);
-        Section section = lockMap.computeIfAbsent(key, k -> new Section());
-
-        boolean isLocked = section.lock.tryLock();
-        if (isLocked) {
-            return true;
-        } else {
-            // 섹션 별 대기 큐 동시성 처리
-            synchronized (section) {
-                section.waitingQueue.add(requester);
-            }
-            return false;
-        }
-    }
-
-    public void releaseLock(String docTitle, String sectionTitle) {
-        String key = key(docTitle, sectionTitle);
-        Section section = lockMap.get(key);
-        if (section == null) {
-            return;
-        }
-
-        // 섹션 별 대기 큐 동시성 처리
-        synchronized (section) {
-            if (section.waitingQueue.isEmpty()) {
-                section.lock.unlock();
-                lockMap.remove(key);
-            } else {
-                // 섹션 내 대기 중인 다음 클라이언트(Thread)
-                ClientHandler next = section.waitingQueue.poll();
-
-                // 다음 클라이언트에게 write 권한 주기
-                next.grantWritePermission(docTitle, sectionTitle);
-
-                // 락은 유지됨
-            }
-        }
+    public SectionLock getLock(String doc, String sec) {
+        return lockMap.computeIfAbsent(key(doc, sec), k -> new SectionLock());
     }
 }

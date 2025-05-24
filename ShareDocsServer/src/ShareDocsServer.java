@@ -5,21 +5,27 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class ShareDocsServer {
 
-    static String configPath = "src/config.txt";
-
-    static String ip = "localhost";
-
-    static int port = 12345;
+    static String configPath = "config.txt";
 
     public static void main(String[] args) throws IOException {
+        Logger.getLogger("").setLevel(Level.INFO);
+
+        if (args.length != 2) {
+            System.out.println("사용법: ./myserver <server IP> <server port>");
+            return;
+        }
+        String ip = args[0];
+        int port = Integer.parseInt(args[1]);
         writeServerInfoToConfig(configPath, ip, port);
 
+        ServerSocket serverSocket = new ServerSocket(port);
         DocsManager docsManager = new DocsManagerImpl(configPath);
 
-        ServerSocket serverSocket = new ServerSocket(port);
         System.out.println("서버가 포트 " + port + "에서 대기 중...");
 
         while (true) {
@@ -27,7 +33,7 @@ public class ShareDocsServer {
             System.out.println("클라이언트 " + socket.getInetAddress() + ":" + socket.getPort() + " 접속됨");
 
             // 클라이언트마다 독립 스레드
-            new Thread(new ClientHandler(socket, docsManager)).start();
+            new Thread(new ClientSession(socket, docsManager)).start();
         }
     }
 

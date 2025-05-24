@@ -1,2 +1,0 @@
-docs_server = localhost 12345
-docs_directory = shared_docs

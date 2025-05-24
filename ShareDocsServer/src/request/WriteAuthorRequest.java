@@ -1,6 +1,6 @@
 package request;
 
-public class WriteRequest {
+public class WriteAuthorRequest {
     String command = "write";
     String docTitle;
     String sectionTitle;

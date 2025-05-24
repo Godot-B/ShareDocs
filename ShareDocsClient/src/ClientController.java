@@ -18,7 +18,6 @@ public class ClientController {
     public boolean handleInput(String userLine) throws IOException {
         if (userLine == null || userLine.isEmpty()) return true;
 
-        out.println(userLine);
         List<String> tokens = parseTokens(userLine);
         if (tokens.isEmpty()) return true;
 
@@ -35,9 +34,10 @@ public class ClientController {
                 handleWrite(tokens);
                 break;
             case "bye":
+                handleBye();
                 return false; // 종료
             default:
-                System.out.println(ResponseHandler.getSingleResponse(in));
+                System.out.println("[Error] 알 수 없는 명령어입니다: " + command);
         }
         return true;
     }
@@ -85,11 +85,10 @@ public class ClientController {
 
         String status = ResponseHandler.readStatus(in);
         if (status.equals("ok")) {
-            ResponseHandler.getSingleResponse(in);  // 서버의 응답 출력
+            System.out.println(ResponseHandler.getSingleResponse(in));  // 서버의 응답 출력
 
         } else if (status.equals("error")) {
-            System.out.println("[Error] ");
-            ResponseHandler.getSingleResponse(in);  // 서버의 에러 메시지 출력
+            System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
         } else {
             System.out.println("[Unknown Error]");
         }
@@ -105,8 +104,7 @@ public class ClientController {
                 ResponseHandler.printStructure(in);  // 서버의 응답 출력
 
             } else if (status.equals("error")) {
-                System.out.println("[Error] ");
-                ResponseHandler.getSingleResponse(in);  // 서버의 에러 메시지 출력
+                System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
             } else {
                 System.out.println("[Unknown Error]");
             }
@@ -119,8 +117,7 @@ public class ClientController {
                 ResponseHandler.printSectionContents(in);  // 서버의 응답 출력
 
             } else if (status.equals("error")) {
-                System.out.println("[Error] ");
-                ResponseHandler.getSingleResponse(in); // 서버의 에러 메시지 출력
+                System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
             } else {
                 System.out.println("[Unknown Error]");
             }
@@ -130,10 +127,48 @@ public class ClientController {
         }
     }
 
-    private void handleWrite(List<String> tokens) {
+    private void handleWrite(List<String> tokens) throws IOException {
+        if (tokens.size() != 3) {
+            System.out.println("사용법: write <d_title> <s_title>");
+            return;
+        }
 
-        // TODO 0. 대기 여부 처리
-        // TODO 1. 클라이언트가 user의 편리한 입력 인터페이스 제공
-        // TODO 2. 64KB 줄 단위 out.println, 끝을 알리는 __END__를 붙임
+        // 쓰기 권한 요청
+        EncodeAndRequest.writeAuthor(tokens, out);
+
+        String status = ResponseHandler.readStatus(in);
+        if (status.equals("wait")) {
+            System.out.println("다른 사용자가 쓰기 중입니다. 승인 대기 중...");
+
+            status = ResponseHandler.readStatus(in);
+        }
+
+        if (status.equals("ok")) {
+            System.out.println(ResponseHandler.getSingleResponse(in));  // 서버의 응답 출력
+        } else if (status.equals("error")) {
+            System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
+            return;
+        }
+
+        // 사용자로부터 줄 단위 입력 받기
+        List<String> lines = WriteEditor.openEditor();
+
+        // 줄 단위 데이터 전송
+        for (String line : lines) {
+            out.println(line);
+        }
+        out.println("__END__");
+
+        status = ResponseHandler.readStatus(in);
+        if (status.equals("ok")) {
+            System.out.println(ResponseHandler.getSingleResponse(in));  // 서버의 응답 출력
+        } else if (status.equals("error")) {
+            System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
+        }
+    }
+
+    private void handleBye() {
+        EncodeAndRequest.bye(out);
+        System.out.println("서버에 연결 종료를 요청합니다.");
     }
 }
