@@ -5,15 +5,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class ShareDocsServer {
 
     static String configPath = "config.txt";
 
     public static void main(String[] args) throws IOException {
-        Logger.getLogger("").setLevel(Level.INFO);
 
         if (args.length != 2) {
             System.out.println("사용법: ./myserver <server IP> <server port>");
@@ -30,7 +27,8 @@ public class ShareDocsServer {
 
         while (true) {
             Socket socket = serverSocket.accept();
-            System.out.println("클라이언트 " + socket.getInetAddress() + ":" + socket.getPort() + " 접속됨");
+            System.out.println("클라이언트 " + socket.getInetAddress() +
+                    ":" + socket.getPort() + " 접속됨");
 
             // 클라이언트마다 독립 스레드
             new Thread(new ClientSession(socket, docsManager)).start();

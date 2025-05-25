@@ -1,4 +1,5 @@
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import request.CreateRequest;
@@ -10,25 +11,22 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class ClientSession implements Runnable {
+    private static final Logger logger = Logger.getLogger(ClientSession.class.getName());
+
     private final Socket socket;
     private final DocsManager docsManager;
+    private final SectionLockManager lockManager = SectionLockManager.getInstance();
 
     private BufferedReader in;
     private PrintWriter out;
-
-    // 상태 enum
-    private enum State { WAIT_COMMAND, WRITING }
-    private State state = State.WAIT_COMMAND;
-
-    // 쓰기 관련 임시 변수
-    private String currentDoc = null;
-    private String currentSec = null;
-    private final List<String> writeBuffer = new ArrayList<>();
 
     public ClientSession(Socket socket, DocsManager docsManager) {
         this.socket = socket;
@@ -44,121 +42,49 @@ public class ClientSession implements Runnable {
             out.println("ShareDocs에 오신 것을 환영합니다." +
                     "\n명령어를 입력하세요. (create, read, write, bye):");
 
+            Gson gson = new Gson();
             String line;
             while ((line = in.readLine()) != null) {
-                switch (state) {
-                    case WAIT_COMMAND -> handleCommand(line);
-                    case WRITING -> handleWriting(line);
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("내용 저장 중 오류가 발생하였습니다." + e.getMessage());
-        } finally {
-            // 종료 시 쓰기 중이었으면 안전하게 마무리
-            if (state == State.WRITING) {
-                SectionLock lock = SectionLockManager.getInstance()
-                        .getLock(currentDoc, currentSec);
-
-                if (lock != null && lock.isHeldBy(this)) {
-                    lock.release(this);  // 소유자인 경우에만 해제
-                }
-            }
-
-            try {
-                if (in != null) in.close();
-                if (out != null) out.close();
-                socket.close();
-            } catch (IOException ignored) {}
-        }
-    }
-
-    private void handleCommand(String line) throws IOException {
-        JsonObject req;
-        try {
-            req = JsonParser.parseString(line).getAsJsonObject();
-        } catch (Exception e) {
-            out.println("status: error");
-            out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
-            return;
-        }
-
-        Gson gson = new Gson();
-        String command = req.get("command").getAsString();
-
-        switch (command) {
-            case "write" -> {
-                if (state == State.WRITING) {
+                JsonElement element = JsonParser.parseString(line);
+                if (!element.isJsonObject()) {
                     out.println("status: error");
-                    out.println("이미 쓰기 중입니다. 완료 후 다시 요청하세요.");
-                    return;
+                    out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
+                    continue;
                 }
+                JsonObject json = element.getAsJsonObject();
 
-                WriteAuthorRequest writeAuthReq = gson.fromJson(req, WriteAuthorRequest.class);
-                currentDoc = writeAuthReq.getDocTitle();
-                currentSec = writeAuthReq.getSectionTitle();
+                String command = json.get("command").getAsString();
 
-                SectionLock lock = SectionLockManager.getInstance().getLock(currentDoc, currentSec);
-                if (lock.tryAcquire(this)) {
-                    grantWritePermission();
-                } else {
-                    sendWaitMessage();
+                switch (command) {
+                    case "create":
+                        CreateRequest createReq = gson.fromJson(json, CreateRequest.class);
+                        handleCreate(createReq);
+                        break;
+                    case "read":
+                        ReadRequest readReq = gson.fromJson(json, ReadRequest.class);
+                        handleRead(readReq);
+                        break;
+                    case "write":
+                        WriteAuthorRequest writeReq = gson.fromJson(json, WriteAuthorRequest.class);
+                        handleWrite(writeReq);
+                        break;
+                    case "bye":
+                        in.close();
+                        out.close();
+                        socket.close();
+                        System.out.println("클라이언트 " + socket.getInetAddress() +
+                                ":" + socket.getPort() + " 연결 종료됨.");
+                        return;
+                    default:
+                        out.println("status: error");
+                        out.println("잘못된 명령어입니다: " + command);
                 }
             }
-            case "create" -> {
-                CreateRequest createReq = gson.fromJson(req, CreateRequest.class);
-                handleCreate(createReq);
-            }
-            case "read" -> {
-                ReadRequest readReq = gson.fromJson(req, ReadRequest.class);
-                handleRead(readReq);
-            }
-            case "bye" -> {
-                System.out.println("클라이언트 " + socket.getInetAddress() +
-                        ":" + socket.getPort() + " 연결 종료됨.");
-                socket.close();
-            }
-            default -> {
-                out.println("status: error");
-                out.println("잘못된 명령어입니다: " + command);
-            }
+        } catch (IOException | InterruptedException e) {
+            logger.severe("클라이언트 처리 중 오류: " + e.getMessage());
+            logger.log(Level.SEVERE, "예외 상세:", e);
         }
     }
-
-    private void handleWriting(String line) throws IOException {
-        if (line.equals("__END__")) {
-            docsManager.writeSection(currentDoc, currentSec, writeBuffer);
-            out.println("status: ok");
-            out.println("내용이 성공적으로 저장되었습니다.");
-
-            SectionLock lock = SectionLockManager.getInstance().getLock(currentDoc, currentSec);
-            if (lock.isHeldBy(this)) {
-                lock.release(this);
-            }
-
-            resetWriteState();
-        } else {
-            writeBuffer.add(line);
-        }
-    }
-
-    public void grantWritePermission() {
-        this.state = State.WRITING;
-        writeBuffer.clear();
-        out.println("status: ok");
-        out.println("섹션에 쓸 내용을 입력하세요.");
-    }
-
-    public void sendWaitMessage() {
-        out.println("status: wait");
-    }
-
-    private void resetWriteState() {
-        this.state = State.WAIT_COMMAND;
-        this.currentDoc = null;
-        this.currentSec = null;
-        this.writeBuffer.clear();
-    }
-
 
     private void handleCreate(CreateRequest request) {
 
@@ -218,5 +144,67 @@ public class ClientSession implements Runnable {
             out.println("__SEP__");  // 문서 구분자
         }
         out.println("__END__");  // 이스케이프
+    }
+
+    private void handleWrite(WriteAuthorRequest request) throws InterruptedException {
+        String docTitle = request.getDocTitle();
+        String sectionTitle = request.getSectionTitle();
+        Path sectionPath = docsManager.locateSecPath(docTitle, sectionTitle);
+        if (sectionPath == null) {
+            out.println("status: error");
+            out.println("존재하지 않는 섹션입니다: " + docTitle + "/" + sectionTitle);
+            return;
+        }
+
+        boolean isAvailable = lockManager.requestLock(sectionPath, this);
+        if (isAvailable) {
+            startWriteSession(sectionPath);
+        } else {
+            // 클라이언트 wait
+            out.println("status: wait");
+
+            // 락 소유자가 될 때까지 기다림
+            SectionLockManager.waitForTurn(sectionPath, this);
+
+            // 깨어나면 write 시작
+            isAvailable = lockManager.requestLock(sectionPath, this);
+            if (isAvailable) {
+                startWriteSession(sectionPath);
+            } else {
+                out.println("status: error");
+                out.println("예상치 못한 락 충돌이 발생했습니다.");
+            }
+        }
+    }
+
+    private void startWriteSession(Path sectionPath) {
+        out.println("status: ok");
+        out.println("섹션에 쓸 내용을 입력하세요.");
+
+        List<String> lines = new ArrayList<>();
+        try {
+            String line;
+            // 클라이언트가 __END__ 줄을 마지막으로 입력하여 끝을 알림.
+            while ((line = in.readLine()) != null && !line.equals("__END__")) {
+                // 클라이언트의 write에 의해 이미 64바이트 줄 단위 전송됨.
+                lines.add(line);
+            }
+
+            docsManager.commitWrite(sectionPath, lines);
+
+            out.println("status: ok");
+            out.println("내용이 성공적으로 저장되었습니다.");
+
+        } catch (IOException e) {
+            out.println("status: error");
+            out.println("내용 저장 중 오류가 발생하였습니다.");
+
+            logger.severe("쓰기 중 오류: " + e.getMessage());
+            logger.log(Level.SEVERE, "예외 상세:", e);
+
+        } finally {
+            // 락 해제 & 대기 중인 다음 클라이언트가 있다면 권한 넘김
+            lockManager.releaseLock(sectionPath);
+        }
     }
 }

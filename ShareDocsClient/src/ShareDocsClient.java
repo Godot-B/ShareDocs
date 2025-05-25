@@ -35,6 +35,6 @@ public class ShareDocsClient {
         socket.close();  // TCP FIN 전송됨
         in.close();
         out.close();
-        System.out.println("클라이언트 종료.");
+        System.out.println("클라이언트가 종료됩니다.");
     }
 }

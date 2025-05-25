@@ -10,9 +10,9 @@ import java.util.logging.Logger;
 
 
 public class DocsManagerImpl implements DocsManager {
+    private static final Logger logger = Logger.getLogger(DocsManagerImpl.class.getName());
 
     private final Path baseDir;
-    private static final Logger logger = Logger.getLogger(DocsManagerImpl.class.getName());
 
     public DocsManagerImpl(String configPath) {
         String directoryPath = findDirectoryFromConfig(configPath);
@@ -161,10 +161,9 @@ public class DocsManagerImpl implements DocsManager {
     }
 
     @Override
-    public void writeSection(String docTitle, String sectionTitle, List<String> lines) throws IOException {
-        Path sectionPath = locateSecPath(docTitle, sectionTitle);
+    public void commitWrite(Path sectionPath, List<String> lines) throws IOException {
         if (sectionPath == null) {
-            throw new IOException("해당 섹션을 찾을 수 없습니다: " + docTitle + "/" + sectionTitle);
+            throw new IOException("해당 섹션을 찾을 수 없습니다");
         }
 
         try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(sectionPath, StandardCharsets.UTF_8))) {

@@ -17,7 +17,7 @@ public class ResponseHandler {
         try {
             response = in.readLine();
         } catch (IOException e) {
-            System.err.println("서버로부터 수신 실패: " + e.getMessage());
+            System.out.println("단일 응답 수신 중 오류가 발생하였습니다.");
         }
         return response;
     }

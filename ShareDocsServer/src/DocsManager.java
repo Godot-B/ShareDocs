@@ -13,5 +13,5 @@ public interface DocsManager {
 
     List<String> readSection(String docTitle, String sectionTitle) throws IOException;
 
-    void writeSection(String docTitle, String sectionTitle, List<String> lines) throws IOException;
+    void commitWrite(Path sectionPath, List<String> lines) throws IOException;
 }
