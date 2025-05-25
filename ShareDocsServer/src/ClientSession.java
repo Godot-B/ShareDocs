@@ -164,7 +164,7 @@ public class ClientSession implements Runnable {
             out.println("status: wait");
 
             // 락 소유자가 될 때까지 기다림
-            SectionLockManager.waitForTurn(sectionPath, this);
+            lockManager.waitForTurn(sectionPath, this);
 
             // 깨어나면 write 시작
             isAvailable = lockManager.requestLock(sectionPath, this);
