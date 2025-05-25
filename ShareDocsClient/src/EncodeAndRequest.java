@@ -10,7 +10,7 @@ import java.util.*;
 public class EncodeAndRequest {
     private static final Gson gson = new Gson();
 
-    public static boolean isOverMaxBytes(String input, int maxBytes) {
+    private static boolean isOverMaxBytes(String input, int maxBytes) {
         return input.getBytes(StandardCharsets.UTF_8).length > maxBytes;
     }
 
@@ -40,7 +40,8 @@ public class EncodeAndRequest {
                 System.out.println("섹션 제목이 64바이트를 초과했습니다.");
                 return false;
             }
-            if (!sectionTitleSet.add(sectionTitle)) {
+            boolean diffTitle = sectionTitleSet.add(sectionTitle);
+            if (!diffTitle) {
                 System.out.println("섹션 제목이 중복되었습니다: " + sectionTitle);
                 return false;
             }
@@ -50,7 +51,6 @@ public class EncodeAndRequest {
 
         String json = gson.toJson(request);
         out.println(json);
-
         return true;
     }
 
@@ -64,7 +64,7 @@ public class EncodeAndRequest {
     }
 
     // read <d_title> <s_title>
-    public static void read(List<String> tokens, PrintWriter out) {
+    public static void readWithArgs(List<String> tokens, PrintWriter out) {
         String docTitle = tokens.get(1);
         String sectionTitle = tokens.get(2);
 

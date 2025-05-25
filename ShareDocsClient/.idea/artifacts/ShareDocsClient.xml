@@ -4,6 +4,7 @@
     <root id="archive" name="ShareDocsClient.jar">
       <element id="module-output" name="ShareDocsClient" />
       <element id="extracted-dir" path="$PROJECT_DIR$/libs/gson-2.13.1.jar" path-in-jar="/" />
+      <element id="file-copy" path="$PROJECT_DIR$/libs/gson-2.13.1.jar" />
     </root>
   </artifact>
 </component>

@@ -21,7 +21,7 @@ public class ClientController {
         List<String> tokens = parseTokens(userLine);
         if (tokens.isEmpty()) return true;
 
-        String command = tokens.get(0).toLowerCase();
+        String command = tokens.get(0);
 
         switch (command) {
             case "create":
@@ -35,7 +35,7 @@ public class ClientController {
                 break;
             case "bye":
                 handleBye();
-                return false; // 종료
+                return false;  // 종료
             default:
                 System.out.println("[Error] 알 수 없는 명령어입니다: " + command);
         }
@@ -44,10 +44,15 @@ public class ClientController {
 
     public static List<String> parseTokens(String inputLine) {
         List<String> tokens = new ArrayList<>();
-        Matcher matcher = Pattern.compile("\"([^\"]*)\"|(\\S+)").matcher(inputLine);
+
+        Matcher matcher = Pattern.compile("\"([^\"]*)\"" +
+                        "|" +
+                        "(\\S+)")
+                .matcher(inputLine);
+
         while (matcher.find()) {
             if (matcher.group(1) != null) {
-                tokens.add(matcher.group(1));  // "..." 안의 값
+                tokens.add(matcher.group(1));  // " " 안의 값
             } else {
                 tokens.add(matcher.group(2));  // 숫자 또는 단일 단어
             }
@@ -72,7 +77,7 @@ public class ClientController {
             System.out.println("문서 하나 당 섹션 수는 최대 10개입니다.");
             return;
         }
-        if (tokens.size() != 3 + sectionCount) {
+        if (tokens.size() != (3 + sectionCount)) {
             System.out.println("만들고자 하는 섹션 수가 " + sectionCount + "개가 아닙니다.");
             return;
         }
@@ -89,13 +94,10 @@ public class ClientController {
 
         } else if (status.equals("error")) {
             System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
-        } else {
-            System.out.println("[Unknown Error]");
         }
     }
 
     private void handleRead(List<String> tokens) throws IOException {
-
         if (tokens.size() == 1) {  // read
             EncodeAndRequest.readNoArgs(out);
 
@@ -105,12 +107,10 @@ public class ClientController {
 
             } else if (status.equals("error")) {
                 System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
-            } else {
-                System.out.println("[Unknown Error]");
             }
 
         } else if (tokens.size() == 3) {  // read <d_title> <s_title>>
-            EncodeAndRequest.read(tokens, out);
+            EncodeAndRequest.readWithArgs(tokens, out);
 
             String status = ResponseHandler.readStatus(in);
             if (status.equals("ok")) {
@@ -118,8 +118,6 @@ public class ClientController {
 
             } else if (status.equals("error")) {
                 System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
-            } else {
-                System.out.println("[Unknown Error]");
             }
 
         } else {  // 잘못된 명령어 형식

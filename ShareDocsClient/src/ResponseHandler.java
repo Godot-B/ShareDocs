@@ -44,7 +44,7 @@ public class ResponseHandler {
 
         // 섹션 내용 출력
         while ((line = in.readLine()) != null && !line.equals("__END__")) {
-            System.out.println("\t\t" + line);
+            System.out.println("\t" + "\t" + line);
         }
     }
 }
