@@ -1,56 +1,37 @@
 import java.io.*;
 import java.net.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
 
 public class ShareDocsServer {
-
     static String configPath = "config.txt";
 
-    public static void main(String[] args) throws IOException {
-
+    public static void main(String[] args) {
         if (args.length != 2) {
             System.out.println("사용법: ./myserver <server IP> <server port>");
             return;
         }
-        String ip = args[0];
-        int port = Integer.parseInt(args[1]);
-        writeServerInfoToConfig(configPath, ip, port);
+        String serverIp = args[0];
+        int serverPort = Integer.parseInt(args[1]);
+        InetSocketAddress socketAddress = new InetSocketAddress(serverIp, serverPort);
 
-        ServerSocket serverSocket = new ServerSocket(port);
-        DocsManager docsManager = new DocsManagerImpl(configPath);
+        try (ServerSocket serverSocket = new ServerSocket()) {
+            serverSocket.bind(socketAddress);
+            DocsManager docsManager = new DocsManagerImpl(configPath);
 
-        System.out.println("서버가 포트 " + port + "에서 대기 중...");
+            System.out.println("ShareDocs 서버가 시작됩니다.");
+            System.out.printf("서버 주소: %s:%d%n\n", serverIp, serverPort);
 
-        while (true) {
-            Socket socket = serverSocket.accept();
-            System.out.println("클라이언트 " + socket.getInetAddress() +
-                    ":" + socket.getPort() + " 접속됨");
+            //noinspection InfiniteLoopStatement
+            while (true) {
+                Socket socket = serverSocket.accept();
+                System.out.println("클라이언트 " + socket.getInetAddress() +
+                        ":" + socket.getPort() + " 접속됨");
 
-            // 클라이언트마다 독립 스레드
-            new Thread(new ClientSession(socket, docsManager)).start();
-        }
-    }
-
-    private static void writeServerInfoToConfig(String configPath, String ip, int port) throws IOException {
-        Path path = Paths.get(configPath);
-        List<String> originalLines = new ArrayList<>();
-
-        if (Files.exists(path)) {
-            for (String line : Files.readAllLines(path)) {
-                // 기존 docs_server 라인은 제거
-                if (!line.trim().startsWith("docs_server")) {
-                    originalLines.add(line);
-                }
+                // 클라이언트마다 독립 스레드
+                new Thread(new ClientSession(socket, docsManager)).start();
             }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-
-        // 맨 위에 docs_server 라인 추가
-        originalLines.add(0, "docs_server = " + ip + " " + port);
-
-        Files.write(path, originalLines);
     }
 }

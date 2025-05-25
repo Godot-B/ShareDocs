@@ -6,7 +6,7 @@ public class ReadRequest {
     String docTitle;
     String sectionTitle;
 
-    public Boolean getHasArgs() {
+    public Boolean hasArgs() {
         return hasArgs;
     }
     public String getDocTitle() {

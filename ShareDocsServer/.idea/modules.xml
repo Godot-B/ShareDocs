@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/ShareDocs.iml" filepath="$PROJECT_DIR$/ShareDocs.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ShareDocsServer.iml" filepath="$PROJECT_DIR$/ShareDocsServer.iml" />
     </modules>
   </component>
 </project>

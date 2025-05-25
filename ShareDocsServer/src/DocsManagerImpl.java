@@ -29,17 +29,10 @@ public class DocsManagerImpl implements DocsManager {
         try (BufferedReader reader = new BufferedReader(new FileReader(configPath))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                line = line.trim();
-
-                // 주석이나 빈 줄은 무시
-                if (line.isEmpty() || line.startsWith("#")) continue;
-
                 // docs_directory 설정 찾기
                 if (line.startsWith("docs_directory")) {
                     String[] tokens = line.split("=", 2);
-                    if (tokens.length == 2) {
-                        return tokens[1].trim();
-                    }
+                    return tokens[1].trim();
                 }
             }
         } catch (IOException e) {
@@ -51,7 +44,7 @@ public class DocsManagerImpl implements DocsManager {
     @Override
     public CreateResult createDocument(String docTitle, List<String> sectionTitles) {
         Path docPath = baseDir.resolve(docTitle);
-        if (Files.exists(docPath)) {
+        if (Files.exists(docPath)) {  // 동일한 이름의 문서가 이미 존재하는지 확인
             return CreateResult.ALREADY_EXISTS;
         }
 
@@ -73,15 +66,17 @@ public class DocsManagerImpl implements DocsManager {
     public Map<String, List<String>> getStructure() {
         Map<String, List<String>> result = new HashMap<>();
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(baseDir)) {
-            for (Path docDir : stream) {
+        try (DirectoryStream<Path> docStream = Files.newDirectoryStream(baseDir)) {
+            for (Path docDir : docStream) {
                 if (Files.isDirectory(docDir)) {
+                    // 섹션 제목
                     List<String> sections = new ArrayList<>();
 
                     try (DirectoryStream<Path> sectionStream = Files.newDirectoryStream(docDir)) {
                         for (Path section : sectionStream) {
-                            String name = section.getFileName().toString().replaceFirst("\\.txt$", "");
-                            sections.add(name);
+                            String sectionTitle = section.getFileName().toString()
+                                    .replaceFirst("\\.txt$", "");  // ".txt$" 를 제거
+                            sections.add(sectionTitle);
                         }
                     } catch (IOException e) {
                         logger.severe("섹션 디렉토리 읽기 중 오류: " + e.getMessage());
@@ -90,23 +85,27 @@ public class DocsManagerImpl implements DocsManager {
 
                     // 순서 보장
                     sections.sort(Comparator.comparingInt(s -> {
-                        String prefix = s.split("\\.", 2)[0].trim();  // "1. 개요" → "1"
+                        String prefix = s.split("\\. ", 2)[0];  // "1. 개요" → "1"
                         return Integer.parseInt(prefix);
                     }));
 
-                    result.put(docDir.getFileName().toString(), sections);
+                    // 문서 제목
+                    String docTitle = docDir.getFileName().toString();
+
+                    // 해시 테이블에 저장
+                    result.put(docTitle, sections);
                 }
             }
         } catch (IOException e) {
             logger.severe("문서 디렉토리 목록 읽기 중 오류: " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세:", e);
         }
+
         return result;
     }
 
     public Path locateSecPath(String docTitle, String secTitleWithoutPrefix) {
         Path docDir = baseDir.resolve(docTitle);
-
         if (!Files.exists(docDir) || !Files.isDirectory(docDir)) {
             return null;
         }
@@ -114,10 +113,10 @@ public class DocsManagerImpl implements DocsManager {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(docDir, "*.txt")) {
             for (Path file : stream) {
                 String filename = file.getFileName().toString();  // 예: "2. TCP 소켓.txt"
-                String rawTitle = filename.replaceFirst("\\.txt$", "");  // "2. TCP 소켓"
+                String rawTitle = filename.replaceFirst("\\.txt$", "");  // ".txt$" 를 제거
+                String[] parts = rawTitle.split("\\. ", 2);  // prefix 와 분리
+                String actualTitle = parts[1];  // "TCP 소켓"
 
-                String[] parts = rawTitle.split("\\.", 2);  // prefix와 분리
-                String actualTitle = parts[1].trim();  // "TCP 소켓"
                 if (actualTitle.equals(secTitleWithoutPrefix)) {
                     return file;
                 }
@@ -132,7 +131,6 @@ public class DocsManagerImpl implements DocsManager {
 
     @Override
     public List<String> readSection(String docTitle, String secTitle) {
-
         Path sectionPath = locateSecPath(docTitle, secTitle);
         if (sectionPath == null) {
             return null;
@@ -154,7 +152,7 @@ public class DocsManagerImpl implements DocsManager {
             return lines;
 
         } catch (IOException e) {
-            logger.severe("섹션 읽기 실패: " + sectionPath + " - " + e.getMessage());
+            logger.severe("섹션 읽기 중 오류: " + sectionPath + " - " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세", e);
             return null;
         }

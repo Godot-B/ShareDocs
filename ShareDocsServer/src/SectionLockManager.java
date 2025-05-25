@@ -1,5 +1,6 @@
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -21,17 +22,14 @@ public class SectionLockManager {
         final Queue<ClientSession> waitingQueue = new LinkedList<>();
     }
 
-    private static final Map<Path, Section> sectionMap = new HashMap<>();
+    private static final Map<Path, Section> sectionMap = new ConcurrentHashMap<>();  // Thread-safe
 
     /**
      * 클라이언트가 락 요청할 때 호출됨
      * @return true면 즉시 락 획득 성공, false면 대기해야 함
      */
-    public synchronized boolean requestLock(Path sectionPath, ClientSession requester) {
-        Section section;
-        synchronized (this) {
-            section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
-        }
+    public boolean requestLock(Path sectionPath, ClientSession requester) {
+        Section section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
 
         section.lock.lock();
         try {
@@ -57,11 +55,8 @@ public class SectionLockManager {
     /**
      * 락 해제 시 호출됨. 다음 대기자에게 권한을 넘기고 알림.
      */
-    public synchronized void releaseLock(Path sectionPath) {
-        Section section;
-        synchronized (this) {
-            section = sectionMap.get(sectionPath);
-        }
+    public void releaseLock(Path sectionPath) {
+        Section section = sectionMap.get(sectionPath);
         if (section == null) return;
 
         section.lock.lock();
@@ -69,9 +64,7 @@ public class SectionLockManager {
             section.currentOwner = null;
 
             if (section.waitingQueue.isEmpty()) {
-                synchronized (this) {
-                    sectionMap.remove(sectionPath);
-                }
+                sectionMap.remove(sectionPath);
                 return;
             }
 
@@ -88,10 +81,7 @@ public class SectionLockManager {
      * 락을 얻기 위해 자신의 차례가 될 때까지 대기
      */
     public void waitForTurn(Path sectionPath, ClientSession requester) {
-        Section section;
-        synchronized (this) {
-            section = sectionMap.get(sectionPath);
-        }
+        Section section = sectionMap.get(sectionPath);
         if (section == null) return;
 
         section.lock.lock();

@@ -37,7 +37,7 @@ public class ClientSession implements Runnable {
     public void run() {
         try {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new PrintWriter(socket.getOutputStream(), true);
+            out = new PrintWriter(socket.getOutputStream(), true);  // 즉시 전송 보장
 
             out.println("ShareDocs에 오신 것을 환영합니다." +
                     "\n명령어를 입력하세요. (create, read, write, bye):");
@@ -51,8 +51,8 @@ public class ClientSession implements Runnable {
                     out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
                     continue;
                 }
-                JsonObject json = element.getAsJsonObject();
 
+                JsonObject json = element.getAsJsonObject();
                 String command = json.get("command").getAsString();
 
                 switch (command) {
@@ -69,9 +69,9 @@ public class ClientSession implements Runnable {
                         handleWrite(writeReq);
                         break;
                     case "bye":
-                        in.close();
                         out.close();
-                        socket.close();
+                        in.close();
+                        socket.close();  // FIN 전송 및 리소스 해제
                         System.out.println("클라이언트 " + socket.getInetAddress() +
                                 ":" + socket.getPort() + " 연결 종료됨.");
                         return;
@@ -80,6 +80,7 @@ public class ClientSession implements Runnable {
                         out.println("잘못된 명령어입니다: " + command);
                 }
             }
+
         } catch (IOException | InterruptedException e) {
             logger.severe("클라이언트 처리 중 오류: " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세:", e);
@@ -109,7 +110,7 @@ public class ClientSession implements Runnable {
     }
 
     private void handleRead(ReadRequest request) throws IOException {
-        if (request.getHasArgs()) {
+        if (request.hasArgs()) {
             String docTitle = request.getDocTitle();
             String sectionTitle = request.getSectionTitle();
             List<String> lines = docsManager.readSection(docTitle, sectionTitle);
@@ -121,7 +122,7 @@ public class ClientSession implements Runnable {
             } else {
                 out.println("status: ok");
                 lines.forEach(out::println);
-                out.println("__END__");
+                out.println("__END__");  // 데이터 전송의 끝
             }
 
         } else {
@@ -143,7 +144,7 @@ public class ClientSession implements Runnable {
             }
             out.println("__SEP__");  // 문서 구분자
         }
-        out.println("__END__");  // 이스케이프
+        out.println("__END__");  // 데이터 전송의 끝
     }
 
     private void handleWrite(WriteAuthorRequest request) throws InterruptedException {
