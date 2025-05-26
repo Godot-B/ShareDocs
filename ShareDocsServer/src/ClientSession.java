@@ -45,14 +45,8 @@ public class ClientSession implements Runnable {
             Gson gson = new Gson();
             String line;
             while ((line = in.readLine()) != null) {
-                JsonElement element = JsonParser.parseString(line);
-                if (!element.isJsonObject()) {
-                    out.println("status: error");
-                    out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
-                    continue;
-                }
-
-                JsonObject json = element.getAsJsonObject();
+                JsonObject json = readJson(line);
+                if (json == null) continue;
                 String command = json.get("command").getAsString();
 
                 switch (command) {
@@ -85,6 +79,17 @@ public class ClientSession implements Runnable {
             logger.severe("클라이언트 처리 중 오류: " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세:", e);
         }
+    }
+
+    private JsonObject readJson(String line) {
+        JsonElement element = JsonParser.parseString(line);
+        if (!element.isJsonObject()) {
+            out.println("status: error");
+            out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
+            return null;
+        }
+
+        return element.getAsJsonObject();
     }
 
     private void handleCreate(CreateRequest request) {
@@ -164,7 +169,7 @@ public class ClientSession implements Runnable {
         lockManager.readyForNextLock(sectionPath);
     }
 
-    public void startWriteSession(Path sectionPath) {
+    private void startWriteSession(Path sectionPath) {
         out.println("status: ok");
         out.println("섹션에 쓸 내용을 입력하세요.");
 
