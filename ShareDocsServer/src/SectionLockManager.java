@@ -37,7 +37,8 @@ public class SectionLockManager {
 
         section.lock.lock();
         try {
-            while (section.currentWriter != null) {
+            while (section.waitingQueue.peek() != requester ||
+                    section.currentWriter != null) {
                 if (!waitSent) {  // 클라이언트에게 대기할 것을 1번만 알림
                     out.println("status: wait");
                     waitSent = true;
