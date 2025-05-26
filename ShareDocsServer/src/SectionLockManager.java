@@ -1,6 +1,9 @@
+import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -14,79 +17,34 @@ public class SectionLockManager {
         return instance;
     }
 
+    private final Map<Path, Section> sectionMap = new ConcurrentHashMap<>();
+
     private static class Section {
-        final ReentrantLock lock = new ReentrantLock(true); // 공정성 보장 Lock
-        final Condition condition = lock.newCondition();  // 대기열 전용 condition
+        final ReentrantLock lock = new ReentrantLock();
+        final Condition condition = lock.newCondition();
 
         ClientSession currentOwner = null;
-        final Queue<ClientSession> waitingQueue = new LinkedList<>();
+        final Queue<ClientSession> waitingQueue = new ConcurrentLinkedQueue<>();  // Thread-safe
     }
 
-    private static final Map<Path, Section> sectionMap = new ConcurrentHashMap<>();  // Thread-safe
+    public void lockHandle(Path sectionPath, ClientSession requester, PrintWriter out) {
+        if (requester == null) {
+            throw new IllegalArgumentException("requester is null");
+        }
 
-    /**
-     * 클라이언트가 락 요청할 때 호출됨
-     * @return true면 즉시 락 획득 성공, false면 대기해야 함
-     */
-    public boolean requestLock(Path sectionPath, ClientSession requester) {
         Section section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
+        section.waitingQueue.offer(requester);
+
+        boolean waitSent = false;
 
         section.lock.lock();
         try {
-            if (section.currentOwner == requester) {
-                // 이미 내 차례가 된 경우
-                return true;
-            }
-
-            // 대기열도 비어있어야
-            if (section.currentOwner == null && section.waitingQueue.isEmpty()) {
-                section.currentOwner = requester;  // 락 점유
-                return true;
-            } else {
-                // 대기열에 사람이 있는 경우에 공정성 보장
-                section.waitingQueue.offer(requester);
-                return false;
-            }
-        } finally {
-            section.lock.unlock();
-        }
-    }
-
-    /**
-     * 락 해제 시 호출됨. 다음 대기자에게 권한을 넘기고 알림.
-     */
-    public void releaseLock(Path sectionPath) {
-        Section section = sectionMap.get(sectionPath);
-        if (section == null) return;
-
-        section.lock.lock();
-        try {
-            section.currentOwner = null;
-
-            if (section.waitingQueue.isEmpty()) {
-                sectionMap.remove(sectionPath);
-                return;
-            }
-
-            // 다음 대기자에게 권한 위임
-            section.currentOwner = section.waitingQueue.poll();
-            section.condition.signalAll();
-
-        } finally {
-            section.lock.unlock();
-        }
-    }
-
-    /**
-     * 락을 얻기 위해 자신의 차례가 될 때까지 대기
-     */
-    public void waitForTurn(Path sectionPath, ClientSession requester) {
-        Section section = sectionMap.get(sectionPath);
-        if (section == null) return;
-
-        section.lock.lock();
-        try {
-            while (section.currentOwner != requester) {
+            // 대기열의 첫 번째가 아닐 경우 condition 대기
+            while (section.waitingQueue.peek() != requester || section.currentOwner != null) {
+                if (!waitSent) {
+                    out.println("status: wait");
+                    waitSent = true;
+                }
                 try {
                     section.condition.await();  // 대기
                 } catch (InterruptedException e) {
@@ -94,6 +52,19 @@ public class SectionLockManager {
                     return;
                 }
             }
+            section.waitingQueue.poll();
+            section.currentOwner = requester;  // 👈 명시적 소유권 부여
+
+        } finally {
+            section.lock.unlock();
+        }
+
+        requester.writeSession(sectionPath);
+
+        section.lock.lock();
+        try {
+            section.currentOwner = null;
+            section.condition.signalAll(); // 다음 대기자 깨우기
         } finally {
             section.lock.unlock();
         }

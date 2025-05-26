@@ -81,7 +81,7 @@ public class ClientSession implements Runnable {
                 }
             }
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             logger.severe("클라이언트 처리 중 오류: " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세:", e);
         }
@@ -147,7 +147,7 @@ public class ClientSession implements Runnable {
         out.println("__END__");  // 데이터 전송의 끝
     }
 
-    private void handleWrite(WriteAuthorRequest request) throws InterruptedException {
+    private void handleWrite(WriteAuthorRequest request) {
         String docTitle = request.getDocTitle();
         String sectionTitle = request.getSectionTitle();
         Path sectionPath = docsManager.locateSecPath(docTitle, sectionTitle);
@@ -157,28 +157,10 @@ public class ClientSession implements Runnable {
             return;
         }
 
-        boolean isAvailable = lockManager.requestLock(sectionPath, this);
-        if (isAvailable) {
-            startWriteSession(sectionPath);
-        } else {
-            // 클라이언트 wait
-            out.println("status: wait");
-
-            // 락 소유자가 될 때까지 기다림
-            lockManager.waitForTurn(sectionPath, this);
-
-            // 깨어나면 write 시작
-            isAvailable = lockManager.requestLock(sectionPath, this);
-            if (isAvailable) {
-                startWriteSession(sectionPath);
-            } else {
-                out.println("status: error");
-                out.println("예상치 못한 락 충돌이 발생했습니다.");
-            }
-        }
+        lockManager.lockHandle(sectionPath, this, out);
     }
 
-    private void startWriteSession(Path sectionPath) {
+    public void writeSession(Path sectionPath) {
         out.println("status: ok");
         out.println("섹션에 쓸 내용을 입력하세요.");
 
@@ -202,10 +184,6 @@ public class ClientSession implements Runnable {
 
             logger.severe("쓰기 중 오류: " + e.getMessage());
             logger.log(Level.SEVERE, "예외 상세:", e);
-
-        } finally {
-            // 락 해제 & 대기 중인 다음 클라이언트가 있다면 권한 넘김
-            lockManager.releaseLock(sectionPath);
         }
     }
 }
