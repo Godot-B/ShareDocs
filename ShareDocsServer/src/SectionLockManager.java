@@ -3,7 +3,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -20,18 +19,17 @@ public class SectionLockManager {
     private final Map<Path, Section> sectionMap = new ConcurrentHashMap<>();
 
     private static class Section {
-        final ReentrantLock lock = new ReentrantLock();
-        final Condition condition = lock.newCondition();
-
-        ClientSession currentOwner = null;
+        ClientSession currentWriter = null;  // 현재 쓰기 중인 클라이언트
         final Queue<ClientSession> waitingQueue = new ConcurrentLinkedQueue<>();  // Thread-safe
+
+        final ReentrantLock lock = new ReentrantLock(true);
+        final Condition condition = lock.newCondition();  // 효율적인 wait-awake 수단
     }
 
-    public void lockHandle(Path sectionPath, ClientSession requester, PrintWriter out) {
+    public void lockOrWait(Path sectionPath, ClientSession requester, PrintWriter out) {
         if (requester == null) {
-            throw new IllegalArgumentException("requester is null");
+            throw new IllegalArgumentException("null인 스레드가 매개변수입니다.");
         }
-
         Section section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
         section.waitingQueue.offer(requester);
 
@@ -39,32 +37,32 @@ public class SectionLockManager {
 
         section.lock.lock();
         try {
-            // 대기열의 첫 번째가 아닐 경우 condition 대기
-            while (section.waitingQueue.peek() != requester || section.currentOwner != null) {
-                if (!waitSent) {
+            while (section.currentWriter != null) {
+                if (!waitSent) {  // 클라이언트에게 대기할 것을 1번만 알림
                     out.println("status: wait");
                     waitSent = true;
                 }
                 try {
-                    section.condition.await();  // 대기
+                    section.condition.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
                 }
             }
-            section.waitingQueue.poll();
-            section.currentOwner = requester;  // 👈 명시적 소유권 부여
+            section.currentWriter = section.waitingQueue.poll();  // 쓰기 권한 획득
 
         } finally {
             section.lock.unlock();
         }
+    }
 
-        requester.writeSession(sectionPath);
+    public void readyForNextLock(Path sectionPath) {
+        Section section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
 
         section.lock.lock();
         try {
-            section.currentOwner = null;
-            section.condition.signalAll(); // 다음 대기자 깨우기
+            section.currentWriter = null;  // 빈 자리로 만듦
+            section.condition.signalAll();  // 다음 대기자 깨우기
         } finally {
             section.lock.unlock();
         }

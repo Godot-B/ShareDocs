@@ -157,10 +157,14 @@ public class ClientSession implements Runnable {
             return;
         }
 
-        lockManager.lockHandle(sectionPath, this, out);
+        lockManager.lockOrWait(sectionPath, this, out);
+
+        startWriteSession(sectionPath);
+
+        lockManager.readyForNextLock(sectionPath);
     }
 
-    public void writeSession(Path sectionPath) {
+    public void startWriteSession(Path sectionPath) {
         out.println("status: ok");
         out.println("섹션에 쓸 내용을 입력하세요.");
 
