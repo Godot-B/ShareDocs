@@ -57,8 +57,6 @@ public class EncodeAndRequest {
     // read
     public static void readNoArgs(PrintWriter out) {
         ReadRequest request = new ReadRequest();
-        request.setHasArgs(false);
-
         String json = gson.toJson(request);
         out.println(json);
     }

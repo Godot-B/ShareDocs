@@ -2,12 +2,11 @@ package request;
 
 public class ReadRequest {
     String command = "read";
-    Boolean hasArgs = true;
     String docTitle;
     String sectionTitle;
 
     public Boolean hasArgs() {
-        return hasArgs;
+        return docTitle != null && sectionTitle != null;
     }
     public String getDocTitle() {
         return docTitle;
