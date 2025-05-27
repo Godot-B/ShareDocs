@@ -27,9 +27,6 @@ public class SectionLockManager {
     }
 
     public void lockOrWait(Path sectionPath, ClientSession requester, PrintWriter out) {
-        if (requester == null) {
-            throw new IllegalArgumentException("null인 스레드가 매개변수입니다.");
-        }
         Section section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
         section.waitingQueue.offer(requester);
 

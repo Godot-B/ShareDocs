@@ -85,7 +85,7 @@ public class ClientSession implements Runnable {
         JsonElement element = JsonParser.parseString(line);
         if (!element.isJsonObject()) {
             out.println("status: error");
-            out.println("잘못된 명령 형식입니다. JSON 객체를 보내야 합니다.");
+            out.println("JSON 형식을 따르지 않는 요청입니다.");
             return null;
         }
 
@@ -158,7 +158,7 @@ public class ClientSession implements Runnable {
         Path sectionPath = docsManager.locateSecPath(docTitle, sectionTitle);
         if (sectionPath == null) {
             out.println("status: error");
-            out.println("존재하지 않는 섹션입니다: " + docTitle + "/" + sectionTitle);
+            out.println("문서나 섹션이 존재하지 않습니다.");
             return;
         }
 
