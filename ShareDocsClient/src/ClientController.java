@@ -82,6 +82,11 @@ public class ClientController {
             return;
         }
 
+        if (forbidWordContained(tokens, sectionCount)) {
+            System.out.println("제목에 __END__나 __SEP__는 포함될 수 없습니다.");
+            return;
+        }
+
         // JSON 형식 Request 전송
         boolean isCreated = EncodeAndRequest.create(tokens, out);
         if (!isCreated) {
@@ -95,6 +100,30 @@ public class ClientController {
         } else if (status.equals("error")) {
             System.out.println("[Error] " + ResponseHandler.getSingleResponse(in));  // 서버의 에러 메시지 출력
         }
+    }
+
+    private static boolean forbidWordContained(List<String> tokens, int sectionCount) {
+        // 금지된 문자열 검사
+        List<String> forbidWords = List.of("__END__", "__SEP__");
+
+        // 문서 제목 검사 (tokens[1])
+        for (String f : forbidWords) {
+            if (tokens.get(1).contains(f)) {
+                return true;
+            }
+        }
+
+        // 섹션 제목들 검사 (tokens[3] ~ tokens[3 + sectionCount - 1])
+        for (int i = 3; i < 3 + sectionCount; i++) {
+            String title = tokens.get(i);
+            for (String f : forbidWords) {
+                if (title.contains(f)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private void handleRead(List<String> tokens) throws IOException {

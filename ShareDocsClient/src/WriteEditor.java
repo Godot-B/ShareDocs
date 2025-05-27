@@ -37,7 +37,7 @@ public class WriteEditor {
             String text = textArea.getText();
             if (text.contains("__END__")) {
                 JOptionPane.showMessageDialog(dialog,
-                        "'__END__'는 클라이언트-서버 예약어입니다.\n입력에서 제거해주세요.",
+                        "'__END__'는 사용할 수 없습니다.\n입력에서 제거해주세요.",
                         "입력 오류", JOptionPane.WARNING_MESSAGE);
                 return;
             }
