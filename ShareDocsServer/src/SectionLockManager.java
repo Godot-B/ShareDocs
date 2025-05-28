@@ -20,7 +20,7 @@ public class SectionLockManager {
 
     private static class Section {
         ClientSession currentWriter = null;  // 현재 쓰기 중인 클라이언트
-        final Queue<ClientSession> waitingQueue = new ConcurrentLinkedQueue<>();  // Thread-safe
+        final Queue<ClientSession> waitingQueue = new LinkedList<>();  // Thread-safe
 
         final ReentrantLock lock = new ReentrantLock(true);
         final Condition condition = lock.newCondition();  // 효율적인 wait-awake 수단
@@ -28,12 +28,12 @@ public class SectionLockManager {
 
     public void lockOrWait(Path sectionPath, ClientSession requester, PrintWriter out) {
         Section section = sectionMap.computeIfAbsent(sectionPath, k -> new Section());
-        section.waitingQueue.offer(requester);
 
         boolean waitSent = false;
 
         section.lock.lock();
         try {
+            section.waitingQueue.offer(requester);
             while (section.waitingQueue.peek() != requester ||
                     section.currentWriter != null) {
                 if (!waitSent) {  // 클라이언트에게 대기할 것을 1번만 알림
