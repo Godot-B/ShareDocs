@@ -2,10 +2,8 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-
 public class SectionLockManager {
 
     // 싱글톤 인스턴스
@@ -20,7 +18,7 @@ public class SectionLockManager {
 
     private static class Section {
         ClientSession currentWriter = null;  // 현재 쓰기 중인 클라이언트
-        final Queue<ClientSession> waitingQueue = new LinkedList<>();  // Thread-safe
+        final Queue<ClientSession> waitingQueue = new LinkedList<>();
 
         final ReentrantLock lock = new ReentrantLock(true);
         final Condition condition = lock.newCondition();  // 효율적인 wait-awake 수단
